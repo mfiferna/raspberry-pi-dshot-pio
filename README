@@ -7,6 +7,14 @@ by other tasks.
 It supports up to 26 motors. However, motors shall be connected to up
 to 4 continuous ranges of GPIO numbers.
 
+All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The
+specific version has to be set into 'dshotVersion' variable prior to
+initialization.
+
+You will need the newest version of Raspbian OS and the newest
+bootloader version (see the ‘Advanced Options’ of raspi-config) to run
+this code.
+
 To compile and run a simple test that spins 4 motors connected to GPIO
 16, 19, 20 and 21 (two continuos ranges of GPIOs) , type:
 
@@ -16,11 +24,4 @@ To compile and run a simple test that spins 4 motors connected to GPIO
 If it does not work you may need to edit 'motor-dshot.c' and adjust
 DSHOT_DIVIDER_FACTOR macro.
 
-All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The
-specific version has to be set into 'dshotVersion' variable prior to
-initialization.
-
-You will need the newest version of Raspbian OS and the newest
-bootloader version (see the ‘Advanced Options’ section of
-raspi-config) to run this code.
 

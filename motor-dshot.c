@@ -109,7 +109,7 @@ static unsigned dshotAddChecksumAndTelemetry(int packet, int telem) {
 }
 
 // precompute continuous areas of pins so that all pins are covered by 4 state machines
-static int dshotSmInit(int motorPins[], int motorMax) {
+static int dshotAssignPinsToStateMachines(int motorPins[], int motorMax) {
     int		i, sm, pin, base, count;
     int8_t 	pinMap[DSHOT_NUM_PINS];
 
@@ -139,7 +139,7 @@ static int dshotSmInit(int motorPins[], int motorMax) {
 }
 
 // precompute mapping from pin number to assigned state machine and pin's bit masks
-static void dshotPinToSmInit() {
+static void dshotPinToSmTableInit() {
     int i, j, pin;
 
     memset(dshotPinToSm, 0, sizeof(dshotPinToSm));
@@ -212,7 +212,7 @@ void motorImplementationSet3dModeAndSpinDirection(int motorPins[], int motorMax,
 }
 
 
-static void dshot_program_init(PIO pio, uint sm, uint offset, uint pin, uint pincount, double clkDivider) {
+static void dshotPioStateMachineInit(PIO pio, uint sm, uint offset, uint pin, uint pincount, double clkDivider) {
     pio_sm_set_consecutive_pindirs(pio, sm, pin, pincount, true);
     pio_sm_config c = dshot_program_get_default_config(offset);
     sm_config_set_out_pins(&c, pin, pincount);
@@ -231,12 +231,12 @@ void motorImplementationInitialize(int motorPins[], int motorMax) {
     stdio_init_all();
     dshotPio = pio0;
     
-    r = dshotSmInit(motorPins, motorMax) ;
+    r = dshotAssignPinsToStateMachines(motorPins, motorMax) ;
     if (r != 0) {
 	fprintf(stderr, "Error: MotorPins aren't in %d continuous intervals. Can't map.\n", DSHOT_PIO_SM_MAX);
     }
     
-    dshotPinToSmInit() ;
+    dshotPinToSmTableInit() ;
 
     for(i=0; i<motorMax; i++) {
 	pio_gpio_init(dshotPio, motorPins[i]);
@@ -262,7 +262,7 @@ void motorImplementationInitialize(int motorPins[], int motorMax) {
     for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
 	if (dshotSm[i].pinCount > 0 && dshotSmi[i] >= 0) {
 	    // printf("init program in sm %d, offset %d, pinbase %d, pincount %d\n", smi[i], loaded_offset, dshotSm[i].pinBase, dshotSm[i].pinCount);
-	    dshot_program_init(dshotPio, dshotSmi[i], dshotLoadedOffset, dshotSm[i].pinBase, dshotSm[i].pinCount, divider);
+	    dshotPioStateMachineInit(dshotPio, dshotSmi[i], dshotLoadedOffset, dshotSm[i].pinBase, dshotSm[i].pinCount, divider);
 	    pio_sm_set_enabled(dshotPio, dshotSmi[i], true);
 	}
     }
