@@ -20,7 +20,7 @@ All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The
 specific version has to be set into 'dshotVersion' variable prior to
 initialization.
 
-You will need the newest version of Raspbian OS and the newest version
-of EEPROM firmware (see the ‘Advanced Options’ section of
+You will need the newest version of Raspbian OS and the newest
+bootloader version (see the ‘Advanced Options’ section of
 raspi-config) to run this code.
 
