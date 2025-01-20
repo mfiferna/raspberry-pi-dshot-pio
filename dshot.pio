@@ -1,0 +1,18 @@
+;
+; Dshot implementation for Raspberry Pi 5 pio library
+; Copyleft () 2025 Xrefactory s.r.o.
+;
+; 
+
+.pio_version 0 // only requires PIO version 0
+
+.define PINS_PER_SM    8
+
+.program dshot
+.wrap_target
+    out x, PINS_PER_SM    [0]   ; save PINS_PER_SM bits from TX FIFO to register x
+    mov pins, ~ null      [2]   ; Drive pins high for three cycles
+    mov pins, x           [2]   ; Set pins to the received value for 3 cycles
+    mov pins, null        [0]   ; Drive pins low for one cycle (it will stay low one more cycle during out operation)
+.wrap
+
