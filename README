@@ -5,7 +5,7 @@ to generate the signal. It works well even if the main CPU is loaded
 by other tasks.
 
 It supports up to 32 motors. However, motors shall be connected to up
-to 4 continuous ranges of GPIO numbers.
+to 4 continuous ranges of GPIO numbers. 
 
 To compile and run a simple test that spins 4 motors connected to GPIO
 16, 19, 20 and 21 (two continuos ranges of GPIOs) , type:
@@ -15,3 +15,7 @@ To compile and run a simple test that spins 4 motors connected to GPIO
 
 If it does not work you may need to edit 'motor-dshot.c' and adjust
 DSHOT_DIVIDER_FACTOR macro.
+
+All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The
+specific version has to be set into 'dshotVersion' variable prior to
+initialization.
