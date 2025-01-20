@@ -4,8 +4,8 @@ GPIO pins of a Raspberry Pi 5.  It uses 'piolib' and RP1 coprocessor
 to generate the signal. It works well even if the main CPU is loaded
 by other tasks.
 
-It supports up to 32 motors. However, motors shall be connected to up
-to 4 continuous ranges of GPIO numbers. 
+It supports up to 26 motors. However, motors shall be connected to up
+to 4 continuous ranges of GPIO numbers.
 
 To compile and run a simple test that spins 4 motors connected to GPIO
 16, 19, 20 and 21 (two continuos ranges of GPIOs) , type:
@@ -19,3 +19,8 @@ DSHOT_DIVIDER_FACTOR macro.
 All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The
 specific version has to be set into 'dshotVersion' variable prior to
 initialization.
+
+You will need the newest version of Raspbian OS and the newest version
+of EEPROM firmware (see the ‘Advanced Options’ section of
+raspi-config) to run this code.
+
