@@ -5,6 +5,7 @@
 extern void motorImplementationInitialize(int motorPins[], int motorMax) ;
 extern void motorImplementationFinalize(int motorPins[], int motorMax) ;
 extern void motorImplementationSendThrottles(int motorPins[], int motorMax, double motorThrottle[]) ;
+extern void dshotRepeatSendCommand(int motorPins[], int motorMax, int cmd, int telemetry, int repeatCounter) ;
 
 
 #define MAXN 	40
@@ -34,13 +35,18 @@ int main(int argc, char **argv) {
     motorImplementationInitialize(motorPins, n);
 
     printf("Initializing ESC / Arm, waiting 5 seconds.\n");
-    // send 0 throttle during 5 seconds
+#if 1    
+    // to arm, send DSHOT_CMD_MOTOR_STOP (cmd 0) for 5 seconds
+    dshotRepeatSendCommand(motorPins, n, 0, 0, 5000);
+#else    
+    // or send 0 throttle during 5 seconds (depending on your ESC)
     for(i=0; i<n; i++) throttles[i] = 0;
     for(i=0; i<5000; i++) {
         motorImplementationSendThrottles(motorPins, n, throttles);
         usleep(1000);
     }
-
+#endif
+    
     printf("Spinning.\n");
     // make motors spinning on 15% throttle during 5 seconds
     for(i=0; i<n; i++) throttles[i] = 0.15;

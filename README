@@ -22,6 +22,6 @@ To compile and run a simple test that spins 4 motors connected to GPIO
 	   sudo ./test 16 19 20 21
 
 If it does not work for your  ESC you may need to edit 'motor-dshot.c'
-and adjust DSHOT_DIVIDER_FACTOR macro.
+and adjust DSHOT_CLOCK_DIVIDER_FACTOR macro.
 
 

@@ -18,11 +18,12 @@ while not loading the main CPU.
 // #include "../motor-common.h"
 
 // Strangely, my ESC does not conform to the specificaion. Its timing
-// is 18% faster than the spec. DSHOT_DIVIDER_FACTOR is introduced to
-// handle it. If set to the value 1.0, it will produce DSHOT frames
-// with the exact timing as specified in the standard. Values above
-// 1.0 will make broadcasting slower and values under 1.0 faster.
-#define DSHOT_CLOCK_DIVIDER_FACTOR 	0.82
+// is 18% faster than the spec. DSHOT_CLOCK_DIVIDER_FACTOR is
+// introduced to handle it. If set to the value 1.0, it will produce
+// DSHOT frames with the exact timing as specified in the
+// standard. Values above 1.0 will make broadcasting slower and values
+// under 1.0 faster.
+#define DSHOT_CLOCK_DIVIDER_FACTOR 	1.0
 
 // DMA support for RP1 is little documented and maybe a bit experimental.
 // If it does not work for you, You may disable it by setting this to 0.
@@ -31,7 +32,7 @@ while not loading the main CPU.
 // Maximal number of PIO state machines. This number comes from RP1 hardware.
 #define DSHOT_PIO_SM_MAX	4
 
-// Each PIO state machine generates DSHOT to 1, 2, 4, 8 or 16
+// Each PIO state machine generates DSHOT to (max) 2, 4, 8 or 16
 // continuous GPIO pins depending on the value of the following
 // macro. Higher value means that you may use more pins and less state
 // machines (if your motors are connected to continuous GPIO
@@ -248,6 +249,18 @@ static void dshotSendFrames(int motorPins[], int motorMax, unsigned frames[]) {
     }
 }
 
+static void dshotPioStateMachineInit(PIO pio, uint sm, uint offset, uint pin, uint pincount, double clkDivider) {
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, pincount, true);
+    pio_sm_config c = dshot_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, pin, pincount);
+    sm_config_set_set_pins(&c, pin, pincount);
+    sm_config_set_out_shift (&c, true, true, 32);
+    sm_config_set_fifo_join (&c, PIO_FIFO_JOIN_TX);
+    sm_config_set_clkdiv (&c, clkDivider);
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+// TODO: no need for i parameter --> dshotThrottleToDshotFrame(motorThrottle) 
 static unsigned dshotThrottleToDshotFrame(int i, double motorThrottle[]) {
     int 	ff;
     unsigned 	res;
@@ -321,18 +334,6 @@ void motorImplementationSet3dModeAndSpinDirection(int motorPins[], int motorMax,
     usleep(50000);
 }
 
-
-static void dshotPioStateMachineInit(PIO pio, uint sm, uint offset, uint pin, uint pincount, double clkDivider) {
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, pincount, true);
-    pio_sm_config c = dshot_program_get_default_config(offset);
-    sm_config_set_out_pins(&c, pin, pincount);
-    sm_config_set_set_pins(&c, pin, pincount);
-    sm_config_set_out_shift (&c, true, true, 32);
-    sm_config_set_fifo_join (&c, PIO_FIFO_JOIN_TX);
-    sm_config_set_clkdiv (&c, clkDivider);
-    pio_sm_init(pio, sm, offset, &c);
-}
-
 void motorImplementationInitialize(int motorPins[], int motorMax) {
     int    i, r;
     double divider;
@@ -356,12 +357,10 @@ void motorImplementationInitialize(int motorPins[], int motorMax) {
 	if (dshotSm[i].pinCount > 0) {
 	    dshotSmi[i] = pio_claim_unused_sm(dshotPio, false);
 	    if (dshotSmi[i] < 0) fprintf(stderr, "Error: Can't claim state machine number %d\n", i);
-	    // pio_sm_set_enabled(pio, smi[i], true);
 	}
     }
 
     dshotLoadedOffset = pio_add_program(dshotPio, &dshot_program);
-    // printf("loaded offset %d\n", loaded_offset);
 
     // Set clock divider to the value specified in dshot specification (we use 8 ticks to broadcast one bit).
     divider = clock_get_hz(clk_sys) / (dshotVersion * 1000 * 8);
@@ -386,7 +385,7 @@ void motorImplementationFinalize(int motorPins[], int motorMax) {
     /*
       int i;
 
-      // Strangely, this code makes state machines to freeze```````````
+      // Strangely, this code makes state machines to freeze
       // TODO: figure out the proper deinitialization of RP1 state machines
 
       for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
