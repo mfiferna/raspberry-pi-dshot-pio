@@ -103,7 +103,7 @@ struct pinToSmStr {
 // the /dev/pio0 link.
 static PIO  dshotPio;
 // state machines index acquired from pio lib
-static int  dshotSmi[DSHOT_PIO_SM_MAX];
+static int  dshotPioSmi[DSHOT_PIO_SM_MAX];
 // pin distribution among state machines
 static struct dshotPioPins dshotSm[DSHOT_PIO_SM_MAX];
 // the state machine and offset for each pin
@@ -125,7 +125,7 @@ static unsigned dshotAddChecksumAndTelemetry(int packet, int telem) {
 
 // precompute continuous areas of pins so that all pins are covered by 4 state machines
 static int dshotAssignPinsToStateMachines(int motorPins[], int motorMax) {
-    int		i, sm, pin, base, count;
+    int		i, smi, pin, base, count;
     int8_t 	pinMap[DSHOT_NUM_PINS];
 
     memset(pinMap, 0, sizeof(pinMap));
@@ -140,12 +140,12 @@ static int dshotAssignPinsToStateMachines(int motorPins[], int motorMax) {
     while(pinMap[i] == 0 && i<DSHOT_NUM_PINS) i++;
     // No pin's found
     if (i>=DSHOT_NUM_PINS) return(-2);
-    for(sm=0; sm<DSHOT_PIO_SM_MAX; sm++) {
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
 	base = i;
 	while(pinMap[i] != 0 && i<base+PINS_PER_SM && i<DSHOT_NUM_PINS) i++;
 	count = i-base;
-	dshotSm[sm].pinBase = base;
-	dshotSm[sm].pinCount = count;
+	dshotSm[smi].pinBase = base;
+	dshotSm[smi].pinCount = count;
 	while(pinMap[i] == 0 && i<DSHOT_NUM_PINS) i++;
 	if (i>=DSHOT_NUM_PINS) return(0);
     }
@@ -155,13 +155,13 @@ static int dshotAssignPinsToStateMachines(int motorPins[], int motorMax) {
 
 // precompute mapping from pin number to assigned state machine and pin's bit masks
 static void dshotPinToSmTableInit() {
-    int i, j, pin;
+    int smi, j, pin;
 
     memset(dshotPinToSm, 0, sizeof(dshotPinToSm));
-    for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-	for(j=0; j<dshotSm[i].pinCount; j++) {
-	    pin = dshotSm[i].pinBase + j;
-	    dshotPinToSm[pin].sm = i;
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	for(j=0; j<dshotSm[smi].pinCount; j++) {
+	    pin = dshotSm[smi].pinBase + j;
+	    dshotPinToSm[pin].sm = smi;
 	    dshotPinToSm[pin].mask = (1 << j);
 	}
     }
@@ -172,7 +172,7 @@ static void dshotPackFramesIntoFifo(uint16_t *b, int i) {
     int 	k, j, sm;
     uint32_t    bb;
     
-    sm = dshotSmi[i];
+    sm = dshotPioSmi[i];
     for(j=0; j<DSHOT_FRAME_LEN; j+=32/PINS_PER_SM) {
 	bb = 0;
 	for(k=0; k<32/PINS_PER_SM; k++) {
@@ -189,7 +189,7 @@ static void dshotPackFramesIntoFifoUsingDma(uint16_t *b, int i) {
     int 		r, dlen, k, j, sm;
     uint32_t    	bb;
     
-    sm = dshotSmi[i];
+    sm = dshotPioSmi[i];
     dlen = 0;
     for(j=0; j<DSHOT_FRAME_LEN; j+=32/PINS_PER_SM) {
 	bb = 0;
@@ -206,7 +206,7 @@ static void dshotPackFramesIntoFifoUsingDma(uint16_t *b, int i) {
 
 // send dshot 'frames' to 'motorPins' respectively.
 static void dshotSendFrames(int motorPins[], int motorMax, unsigned frames[]) {
-    int         i, bi;
+    int         smi, bi;
     unsigned    bit;
     uint16_t    b[DSHOT_PIO_SM_MAX][DSHOT_FRAME_LEN];
     int	      	pin, sm, mask;
@@ -216,30 +216,30 @@ static void dshotSendFrames(int motorPins[], int motorMax, unsigned frames[]) {
     memset(b, 0, sizeof(b));
 
     // precompute broadcasting to state machines for each message bit
-    for(i=0; i<motorMax; i++) {
-	pin = motorPins[i];
+    for(smi=0; smi<motorMax; smi++) {
+	pin = motorPins[smi];
 	assert(pin < DSHOT_NUM_PINS);
 	sm = dshotPinToSm[pin].sm;
 	mask = dshotPinToSm[pin].mask;
 	bit = 0x8000;
 	for(bi=0; bi<DSHOT_FRAME_LEN; bi++) {
-	    if ((frames[i] & bit)) b[sm][bi] |= mask;
+	    if ((frames[smi] & bit)) b[sm][bi] |= mask;
 	    bit = (bit >> 1);
 	}
     }
 
     // send precomputed frames to each state machine
-    for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-	sm = dshotSmi[i];
-	if (sm >= 0 && dshotSm[i].pinCount > 0) {
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	sm = dshotPioSmi[smi];
+	if (sm >= 0 && dshotSm[smi].pinCount > 0) {
 	    if (pio_sm_is_tx_fifo_empty(dshotPio, sm)) {
 		if (DSHOT_USE_DMA) {
-		    dshotPackFramesIntoFifoUsingDma(b[i], i);
+		    dshotPackFramesIntoFifoUsingDma(b[smi], smi);
 		} else {
 		    // non DMA transfer to TX FIFO seems to be slow. To make a fluent
 		    // broadcasting disable the state machine, fill FIFO, and re-enable it.
 		    pio_sm_set_enabled(dshotPio, sm, false);
-		    dshotPackFramesIntoFifo(b[i], i);
+		    dshotPackFramesIntoFifo(b[smi], smi);
 		    pio_sm_set_enabled(dshotPio, sm, true);
 		}
 	    } else {
@@ -256,30 +256,29 @@ static void dshotPioStateMachineInit(PIO pio, uint sm, uint offset, uint pin, ui
     sm_config_set_set_pins(&c, pin, pincount);
     sm_config_set_out_shift (&c, true, true, 32);
     sm_config_set_fifo_join (&c, PIO_FIFO_JOIN_TX);
-    sm_config_set_clkdiv (&c, clkDivider);
+    sm_config_set_clkdiv(&c, clkDivider);
     pio_sm_init(pio, sm, offset, &c);
 }
 
-// TODO: no need for i parameter --> dshotThrottleToDshotFrame(motorThrottle) 
-static unsigned dshotThrottleToDshotFrame(int i, double motorThrottle[]) {
+static unsigned dshotThrottleToDshotFrame(double tt) {
     int 	ff;
     unsigned 	res;
     
     if (dshot3dMode) {
 	// translate throttles ranging <-1, 1> to dshot frames.
-	if (motorThrottle[i] >= 0) {
-	    ff = motorThrottle[i] * 999 + 1048;
+	if (tt >= 0) {
+	    ff = tt * 999 + 1048;
 	} else {
-	    ff = -motorThrottle[i] * 999 + 48;
+	    ff = -tt * 999 + 48;
 	}
     } else {
 	// translate throttles ranging <0, 1> to dshot frames.
-	ff = motorThrottle[i] * 1999 + 48;
+	ff = tt * 1999 + 48;
     }
     // I used to issue DSHOT_CMD_MOTOR_STOP if thrust == 0. It is not possible anymore
     // because in 3d mode it seems to reset the motor. So, you have to arm motors in some different way.
     // Now the DSHOT_CMD_MOTOR_STOP is issued only for values out of range.
-    if (/*motorThrottle[i] == 0 || */ ff < 48 || ff >= 2048) ff = DSHOT_CMD_MOTOR_STOP;
+    if (/*tt == 0 || */ ff < 48 || ff >= 2048) ff = DSHOT_CMD_MOTOR_STOP;
     res = dshotAddChecksumAndTelemetry(ff, 0);
     return(res);
 }
@@ -335,7 +334,7 @@ void motorImplementationSet3dModeAndSpinDirection(int motorPins[], int motorMax,
 }
 
 void motorImplementationInitialize(int motorPins[], int motorMax) {
-    int    i, r;
+    int    smi, r;
     double divider;
     
     // initialize pio library
@@ -349,31 +348,33 @@ void motorImplementationInitialize(int motorPins[], int motorMax) {
     
     dshotPinToSmTableInit() ;
 
-    for(i=0; i<motorMax; i++) {
-	pio_gpio_init(dshotPio, motorPins[i]);
+    for(smi=0; smi<motorMax; smi++) {
+	pio_gpio_init(dshotPio, motorPins[smi]);
+	// I guess the following line maybe useless, unless set by other software, pull down should be the default.
+	gpio_set_pulls(motorPins[smi], false, true);  // up, down
     }
 
-    for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-	if (dshotSm[i].pinCount > 0) {
-	    dshotSmi[i] = pio_claim_unused_sm(dshotPio, false);
-	    if (dshotSmi[i] < 0) fprintf(stderr, "Error: Can't claim state machine number %d\n", i);
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	if (dshotSm[smi].pinCount > 0) {
+	    dshotPioSmi[smi] = pio_claim_unused_sm(dshotPio, false);
+	    if (dshotPioSmi[smi] < 0) fprintf(stderr, "Error: Can't claim state machine number %d\n", smi);
 	}
     }
 
     dshotLoadedOffset = pio_add_program(dshotPio, &dshot_program);
 
     // Set clock divider to the value specified in dshot specification (we use 8 ticks to broadcast one bit).
-    divider = clock_get_hz(clk_sys) / (dshotVersion * 1000 * 8);
+    divider = (double)clock_get_hz(clk_sys) / (dshotVersion * 1000.0 * 8);
     // My cheap ESC is nearly 20% off the standard. Adjust divider by an ad-hoc value.
     divider *= DSHOT_CLOCK_DIVIDER_FACTOR;
     // printf("clock hz == %d divider == %f\n", clock_get_hz(clk_sys), divider);
 
-    for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-	if (dshotSm[i].pinCount > 0 && dshotSmi[i] >= 0) {
-	    if (DSHOT_USE_DMA) pio_sm_config_xfer(dshotPio, dshotSmi[i], PIO_DIR_TO_SM, 256, 1);
-	    // printf("init program in sm %d, offset %d, pinbase %d, pincount %d\n", smi[i], loaded_offset, dshotSm[i].pinBase, dshotSm[i].pinCount);
-	    dshotPioStateMachineInit(dshotPio, dshotSmi[i], dshotLoadedOffset, dshotSm[i].pinBase, dshotSm[i].pinCount, divider);
-	    pio_sm_set_enabled(dshotPio, dshotSmi[i], true);
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	if (dshotSm[smi].pinCount > 0 && dshotPioSmi[smi] >= 0) {
+	    if (DSHOT_USE_DMA) pio_sm_config_xfer(dshotPio, dshotPioSmi[smi], PIO_DIR_TO_SM, 256, 1);
+	    // printf("init program in sm %d, offset %d, pinbase %d, pincount %d\n", smi[smi], loaded_offset, dshotSm[smi].pinBase, dshotSm[smi].pinCount);
+	    dshotPioStateMachineInit(dshotPio, dshotPioSmi[smi], dshotLoadedOffset, dshotSm[smi].pinBase, dshotSm[smi].pinCount, divider);
+	    pio_sm_set_enabled(dshotPio, dshotPioSmi[smi], true);
 	}
     }
     
@@ -382,23 +383,24 @@ void motorImplementationInitialize(int motorPins[], int motorMax) {
 void motorImplementationFinalize(int motorPins[], int motorMax) {
     /* Not yet implemented. 
     */
+    int smi;
+    
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	if (dshotPioSmi[smi] >= 0) {
+	    pio_sm_set_enabled(dshotPio, dshotPioSmi[smi], false);
+	}
+    }
+
     /*
-      int i;
+    // Strangely, this code makes state machines to freeze
+    // TODO: figure out the proper deinitialization of RP1 state machines
 
-      // Strangely, this code makes state machines to freeze
-      // TODO: figure out the proper deinitialization of RP1 state machines
-
-      for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-      if (smi[i] >= 0) {
-      pio_sm_set_enabled(pio, smi[i], false);
-      }
-      }
-      pio_remove_program (pio, &dshot_program, loaded_offset);
-      for(i=0; i<DSHOT_PIO_SM_MAX; i++) {
-      if (smi[i] >= 0) {
-      pio_sm_unclaim(pio, smi[i]);
-      }
-      }
+    // pio_remove_program (pio, &dshot_program, loaded_offset);
+    for(smi=0; smi<DSHOT_PIO_SM_MAX; smi++) {
+	if (dshotPioSmi[smi] >= 0) {
+	    pio_sm_unclaim(pio, dshotPioSmi[smi]);
+	}
+    }
     */
 }
 
@@ -409,7 +411,7 @@ void motorImplementationSendThrottles(int motorPins[], int motorMax, double moto
     assert(motorMax < DSHOT_NUM_PINS);
 
     for(i=0; i<motorMax; i++) {
-        frames[i] = dshotThrottleToDshotFrame(i, motorThrottle);
+        frames[i] = dshotThrottleToDshotFrame(motorThrottle[i]);
     }
     dshotSendFrames(motorPins, motorMax, frames);
 }
