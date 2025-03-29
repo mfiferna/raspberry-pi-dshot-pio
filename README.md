@@ -1,0 +1,49 @@
+# Raspberry Pi DSHOT PIO Library
+
+This project allows generating DSHOT protocol signals to control ESCs via the GPIO pins of a Raspberry Pi 5. It uses the 'piolib' and RP1 coprocessor to generate the signal. It works well even if the main CPU is loaded by other tasks.
+
+It supports up to 26 motors. However, motors shall be connected to up to 4 continuous ranges of GPIO numbers.
+
+All versions of DSHOT (150 / 300 / 600 / 1200) are supported. The specific version has to be set into the `dshotVersion` variable prior to initialization.
+
+You will need the newest version of Raspbian OS and the newest bootloader version (see the ‘Advanced Options’ of raspi-config) to run this code.
+
+To compile and run a simple test that spins 4 motors connected to GPIO 16, 19, 20, and 21 (two continuous ranges of GPIOs), type:
+
+```sh
+make test
+sudo ./test 16 19 20 21
+```
+
+If it does not work for your ESC, you may need to edit `motor-dshot.c` and adjust the `DSHOT_CLOCK_DIVIDER_FACTOR` macro.
+
+## Python 3 Wrapper
+
+A Python 3 wrapper has been implemented for the `raspberry-pi-dshot-pio` library. The wrapper uses the `ctypes` library to interface with the compiled C library.
+
+### Installation
+
+To compile the C library as a shared object and build the Python wrapper, run:
+
+```sh
+make
+```
+
+### Usage
+
+Here is an example of how to use the Python wrapper:
+
+```python
+import dshot_wrapper
+
+# Initialize the motor implementation
+motor_pins = [16, 19, 20, 21]
+dshot_wrapper.motorImplementationInitialize(motor_pins, len(motor_pins))
+
+# Set throttles for the motors
+throttles = [0.15, 0.15, 0.15, 0.15]
+dshot_wrapper.motorImplementationSendThrottles(motor_pins, len(motor_pins), throttles)
+
+# Finalize the motor implementation
+dshot_wrapper.motorImplementationFinalize(motor_pins, len(motor_pins))
+```
